@@ -44,41 +44,37 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build archive
+      - name: Build release artifacts
         shell: bash
         run: |
           set -euo pipefail
 
           name="curlstress"
           version="${GITHUB_REF_NAME}"
-          target_dir="dist/${name}_${version}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          asset_base="${name}_${version}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          work_dir="$(mktemp -d)"
+          target_dir="${work_dir}/${asset_base}"
           binary_name="${name}"
+          binary_asset="dist/${asset_base}"
 
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
             binary_name="${name}.exe"
+            binary_asset="${binary_asset}.exe"
           fi
 
-          mkdir -p "${target_dir}"
+          mkdir -p dist "${target_dir}"
           GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" CGO_ENABLED=0 \
             go build -trimpath -ldflags="-s -w" -o "${target_dir}/${binary_name}" .
+          cp "${target_dir}/${binary_name}" "${binary_asset}"
 
-          if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            (
-              cd dist
-              zip -rq "${name}_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "$(basename "${target_dir}")"
-            )
-          else
-            tar -C dist -czf "dist/${name}_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" "$(basename "${target_dir}")"
-          fi
+          tar -C "${work_dir}" -czf "dist/${asset_base}.tar.gz" "$(basename "${target_dir}")"
 
-          rm -rf "${target_dir}"
+          rm -rf "${work_dir}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: |
-            dist/*.tar.gz
-            dist/*.zip
+          path: dist/*
 
   publish:
     runs-on: ubuntu-latest

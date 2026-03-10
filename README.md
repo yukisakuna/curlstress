@@ -115,7 +115,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-タグが GitHub に届くと、Linux / macOS / Windows 向けの `curlstress` バイナリをビルドして、GitHub Releases にアーカイブを添付します。
+タグが GitHub に届くと、Linux / macOS / Windows 向けの `curlstress` バイナリをビルドして、GitHub Releases に各ターゲットごとの `tar.gz` と生バイナリを添付します。Windows の生バイナリだけは `.exe` です。
 
 
 ## AIだと思いましたか？
