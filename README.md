@@ -25,7 +25,6 @@ go build -o curlstress .
 ./curlstress -curl-file curl.txt -duration 30s -workers 128 -rps 1000
 ```
 
-同梱の `curl.txt` は公開用の安全なサンプルです。実運用のトークン、Cookie、本番向けペイロードはコミットしないでください。
 
 ## フラグ
 
@@ -117,3 +116,8 @@ git push origin v0.1.0
 ```
 
 タグが GitHub に届くと、Linux / macOS / Windows 向けの `curlstress` バイナリをビルドして、GitHub Releases にアーカイブを添付します。
+
+
+## AIだと思いましたか？
+
+正解です。おめでとう、そしてGPT-5.4ありがとう笑
