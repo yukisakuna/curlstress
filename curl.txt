@@ -1,0 +1,5 @@
+curl 'https://example.com/api/orders' \
+  -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer replace-me' \
+  --data-binary '{"sku":"abc-123","qty":1}'
