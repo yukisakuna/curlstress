@@ -1,28 +1,12 @@
 # curlstress
 
-`curlstress` は `curl.txt` に書いた 1 件の cURL コマンドを読み取り、同じ HTTP リクエストを並列で継続送信する Go 製の負荷テスト用 CLI です。
+`curlstress` は、`curl.txt` に書いた cURL を読み込んで、同じ HTTP リクエストを並列で投げ続ける Go 製の CLI です。
 
-## 前提
+普段 API の確認に使っている cURL を、そのまま負荷試験に持ち込みたいときに向いています。設定ファイルを増やすより、まず 1 本の cURL を置いて回したい、という前提のツールです。
 
-- Go `1.26` 以上
+## すぐ試す
 
-## ビルド
-
-ローカルで `curlstress` という名前のバイナリを作る場合は次を実行します。
-
-```bash
-go build -o curlstress .
-```
-
-## 使い方
-
-1. `curl.txt` に cURL コマンドを 1 件だけ書きます。
-2. `go test ./...` を実行します。
-3. `go build -o curlstress .` でローカルビルドするか、GitHub Releases から配布バイナリを取得します。
-4. `./curlstress -curl-file curl.txt -duration 30s -workers 128 -rps 1000` を実行します。
-
-同梱している `curl.txt` は公開用の安全なサンプルです。
-実運用のトークン、Cookie、本番向けペイロードはコミットしないでください。
+Go `1.26` 以上で動きます。配布バイナリを使うなら `go build` は不要です。
 
 `curl.txt` の例:
 
@@ -34,22 +18,36 @@ curl 'https://example.com/api/orders' \
   --data-binary '{"sku":"abc-123","qty":1}'
 ```
 
-## オプション
+実行:
 
-- `-curl-file`: cURL コマンドを 1 件だけ書いたテキストファイルのパス
-- `-duration`: 負荷をかけ続ける時間
-- `-workers`: 同時実行ワーカー数
-- `-rps`: 秒間リクエスト数の上限。`0` は無制限
-- `-queue`: 互換性維持用フラグ。現在の direct-worker 実装では無視
-- `-req-timeout`: リクエスト単位のタイムアウト。`0` で無効
-- `-http-timeout`: 共有 `http.Client` のタイムアウト。`0` で無効
-- `-progress`: 進捗表示の間隔。`0` で無効
+```bash
+go build -o curlstress .
+./curlstress -curl-file curl.txt -duration 30s -workers 128 -rps 1000
+```
 
-## 対応している cURL オプション
+同梱の `curl.txt` は公開用の安全なサンプルです。実運用のトークン、Cookie、本番向けペイロードはコミットしないでください。
+
+## フラグ
+
+| フラグ | 説明 |
+| --- | --- |
+| `-curl-file` | cURL コマンドを書いたテキストファイル。1 ファイル 1 コマンド前提 |
+| `-duration` | 負荷をかける時間 |
+| `-workers` | 同時実行ワーカー数 |
+| `-rps` | 秒間リクエスト数の上限。`0` なら無制限 |
+| `-queue` | 互換性維持用。いまの direct-worker 実装では無視 |
+| `-req-timeout` | リクエスト単位のタイムアウト。`0` で無効 |
+| `-http-timeout` | 共有 `http.Client` のタイムアウト。`0` で無効 |
+| `-progress` | 進捗表示の間隔。`0` で無効 |
+
+## 読み取れる cURL オプション
+
+普段使う範囲では、次のオプションを解釈します。
 
 - `-X`, `--request`
 - `-H`, `--header`
-- `-d`, `--data`, `--data-raw`, `--data-binary`, `--data-ascii`
+- `-d`, `--data`, `--data-raw`, `--data-ascii`
+- `--data-binary`
 - `--json`
 - `-u`, `--user`
 - `-I`, `--head`
@@ -61,24 +59,46 @@ curl 'https://example.com/api/orders' \
 - `-G`, `--get`
 - `--url`
 
-`-s`, `-S`, `-v`, `-o`, `--compressed`, `--http1.1`, `--http2` のような出力寄りのフラグは無視します。
+`@payload.json` や `@headers.txt` のような相対パスは、`curl.txt` が置いてあるディレクトリ基準で解決します。
 
-## 実行モデル
+次のフラグは受け付けますが、リクエスト内容には使いません。
 
-- リクエストは各ワーカーが直接送信します。中央キューでドロップする構成ではありません。
-- 条件を満たす単一リクエスト先では、HTTP/1.1 keep-alive の raw backend を自動選択します。使えない場合は `net/http` にフォールバックします。
-- `-rps 0` のときはワーカー数、接続再利用、対象サーバー性能が主な上限になります。
-- `-rps > 0` のときは全体の RPS をワーカーへ分配して、中央ボトルネックを避けます。
+- `-s`, `--silent`
+- `-S`, `--show-error`
+- `-v`, `--verbose`
+- `-i`, `--include`
+- `-o`, `--output`
+- `-m`, `--max-time`
+- `--connect-timeout`
+- `-w`, `--write-out`
+- `--http1.1`
+- `--http2`
+- `--path-as-is`
+- `--globoff`
+- `--fail`
+- `--fail-with-body`
 
-## 現在の制限
+`--compressed` は例外で、`Accept-Encoding: gzip, deflate, br` を付ける形で扱います。
 
-- 1 ファイルにつき cURL コマンドは 1 件だけ
-- 対応 URL は `http` と `https` のみ
-- `-F`, `--form` による multipart upload は未対応
-- `@payload.json` や `@headers.txt` の相対パスは `curl.txt` 基準で解決
-- バイト列を厳密に送りたい場合は `--data-binary @file` を推奨
+## 実行の中身
 
-## 確認手順
+- リクエストは各ワーカーが直接送ります。中央キューで詰めて捨てる作りではありません。
+- 条件が合う単一リクエスト先では、HTTP/1.1 keep-alive の raw backend を自動で選びます。無理な場合は `net/http` にフォールバックします。
+- `-rps 0` では、ワーカー数、接続再利用、相手側の処理性能が主な上限になります。
+- `-rps > 0` では、全体の RPS をワーカーへ分配して、中央ボトルネックを作らないようにしています。
+
+## 割り切り
+
+- 1 つのファイルに書ける cURL は 1 件だけです。
+- URL は `http` と `https` だけを対象にしています。
+- `-F`, `--form` による multipart upload にはまだ対応していません。
+- フォーム系の data と raw/binary/json 系の data は混ぜられません。
+- `-G`, `--get` は form-style の `-d` 系オプションと組み合わせた場合だけ扱えます。
+- Cookie jar ファイルを `-b @file` で読む使い方には対応していません。
+- `-d @file` は未対応です。ファイルの内容をそのまま送りたいときは `--data-binary @file` か `--json @file` を使ってください。
+- バイト列をそのまま送りたいなら `--data-binary @file` を使うのが安全です。
+
+## 確認
 
 ```bash
 go test ./...
@@ -87,14 +107,13 @@ go build -o curlstress .
 go test -run ^$ -bench . -benchmem
 ```
 
-## GitHub Release 運用
+## リリース
 
-通常の `commit` や `push` だけでは GitHub Release は作られません。
-`v*` 形式のタグを push したときだけ、[`.github/workflows/release.yml`](.github/workflows/release.yml) が動きます。
+通常の `commit` や `push` だけでは GitHub Release は作られません。`v*` 形式のタグを push したときだけ [`.github/workflows/release.yml`](.github/workflows/release.yml) が動きます。
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-タグが GitHub に届くと、Linux、macOS、Windows 向けの `curlstress` バイナリをビルドし、GitHub Releases にアーカイブを添付します。
+タグが GitHub に届くと、Linux / macOS / Windows 向けの `curlstress` バイナリをビルドして、GitHub Releases にアーカイブを添付します。
